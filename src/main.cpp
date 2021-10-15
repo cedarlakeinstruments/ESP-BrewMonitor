@@ -145,23 +145,23 @@ void loop(void)
 float GetThermistorReading(float volts)
 {
 	// Convert voltage to resistance
-	const double Rs = 10000.0;
+	const double Rs = 12000.0;
 	double ohms = (Rs * volts) / (3.0 - volts);
-	const int sizeofTable = sizeof(ResistanceToCelsiusTable) / sizeof(ResistanceToCelsiusTable[0]);
-	// Check for out of range
-	if (ohms > ResistanceToCelsiusTable[0])
+	
+  // Check for out of range
+	if (ohms > THERMISTOR_END)
 	{
-		return ThermistorLowerLimit-1;
+		return ResistanceToCelsiusTable[0];
 	}
-	else if (ohms < ResistanceToCelsiusTable[sizeofTable - 1])
+	else if (ohms < THERMISTOR_START)
 	{
-		double degC =  ThermistorLowerLimit + ThermistorDegreeIncrement * sizeof(ResistanceToCelsiusTable);
-        // convert to F
-        return degC * 9.0 / 5.0 + 32.0;
-    }
+		return ResistanceToCelsiusTable[380];
+  }
 
 	// Find position in table
-	int i = 1;
+	const int sizeofTable = sizeof(ResistanceToCelsiusTable) / sizeof(ResistanceToCelsiusTable[0]);
+	
+  int i = 1;
 	for (i = 1; i < sizeofTable; i++)
 	{
 		if (ResistanceToCelsiusTable[i] <= ohms)
@@ -170,10 +170,8 @@ float GetThermistorReading(float volts)
 		}
 	}
 
-	// Calculate temperature based on position on curve
-	float degreesC = Map(ohms, ResistanceToCelsiusTable[i - 1], ResistanceToCelsiusTable[i], 
-		(i - 1) * ThermistorDegreeIncrement + ThermistorLowerLimit, i * ThermistorDegreeIncrement + ThermistorLowerLimit);
-    return degreesC * 9.0 / 5.0 + 32.0;
+  	// Calculate temperature based on position on curve
+    return THERMISTOR_START+i-1;
 }
 
 float Map(double input, float inMin, float inMax, float outMin, float outMax)
