@@ -1,8 +1,8 @@
 #pragma once
 // Table starts at -80C
-const float THERMISTOR_START = -80;
+const float THERMISTOR_START = -80.0;
 // Ends at 300C
-const float THERMISTOR_END = 300;
+const float THERMISTOR_END = 300.0;
 
 // Resistance-temperature curve for Littelfuse thermistor
 // 1 degree C spacing
