@@ -20,11 +20,13 @@ float Map(double input, float inMin, float inMax, float outMin, float outMax);
 float readTemp(void);
 float getThermistorReading(float);
 float cToF(float c);
+void sendTempData(void);
 
 const char* ssid = STASSID;
 const char* password = STAPSK;
-char pageBuffer[1000];
+char pageBuffer[2000];
 float _temperature = readTemp();
+unsigned long _timestamp = 0;
 
 ESP8266WebServer server(80);
 const int led = LED_BUILTIN;
@@ -33,16 +35,33 @@ char* buildPage(int p1, int p2, float temp)
     const char* page =
         "<head>\
             <style>\
-                body{background-color:black; color:yellow}\
-                .status{margin-left:30vw;background-color:darkslateblue; color:dimgrey;width:30vw}\
-                .control{margin-left:30vw;background-color:darkslateblue; color:darkslategrey;width:30vw}\
+                body{background-color:black; color:yellow;font-family:sans-serif;font-size:medium}\
+                .status{margin-left:30vw;background-color:darkslateblue; color:white;width:30vw}\
+                .control{margin-left:30vw;background-color:darkslateblue; color:white;width:30vw}\
             </style>\
+            <script>\
+                setInterval(function()\
+                {\
+                    getData();\
+                }, 5000); \
+                function getData() {\
+                  var xhttp = new XMLHttpRequest();\
+                  xhttp.onreadystatechange = function() {\
+                    if (this.readyState == 4 && this.status == 200) {\
+                      document.getElementById('temperature').innerHTML =\
+                      this.responseText;\
+                    }\
+                  };\
+                  xhttp.open('GET', 'tempRead', true);\
+                  xhttp.send();\
+                }\
+            </script>\
          </head>\
          <body>\
-             <div class='status'>Time now %d</div>\
+             <div id='timestamp' class='status'>Time now %d</div>\
              <div class='status'>D1 %d</div>\
              <div class='status'>D2 %d</div>\
-             <div class='status'>%5.1fF</div>\
+             <div id='temperature' class='status'>%5.1fF</div>\
              <div class='control'>\
                 <form action='/LED_ON' method='GET'>\
                     <input type='submit' value='LED ON'/>\
@@ -53,15 +72,20 @@ char* buildPage(int p1, int p2, float temp)
             </div>\
          </body>";
 
-    sprintf(pageBuffer, page, millis(),p1, p2, temp);
+    sprintf(pageBuffer, page, _timestamp,p1, p2, temp);
     return pageBuffer;
 }
 
+// Handle call to base URL
 void handleRoot()
 {
     server.send(200, "text/html", buildPage(100, 150, _temperature));
+    digitalWrite(led, 0);
+    delay(50);
+    digitalWrite(led, 1);
 }
 
+// URL not found
 void handleNotFound()
 {
     String message = "File Not Found\n\n";
@@ -82,7 +106,7 @@ void handleNotFound()
 void setup(void)
 {
     pinMode(led, OUTPUT);
-    digitalWrite(led, 0);
+    digitalWrite(led, 1);
 
     Serial.begin(115200);
     //  WiFi.mode(WIFI_STA);
@@ -102,7 +126,7 @@ void setup(void)
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
 
-    if (MDNS.begin("esp8266"))
+    if (MDNS.begin("Brew-1"))
     {
         MDNS.addService("http", "tcp", 80);
         // Start the mDNS responder for esp8266.local
@@ -113,7 +137,10 @@ void setup(void)
         Serial.println("Error setting up MDNS responder!");
     }
 
+    // Setup handlers
     server.on("/", handleRoot);
+
+    server.on("/tempRead", sendTempData);
 
     server.on("/inline", []()
               { server.send(200, "text/plain", "this works as well"); });
@@ -141,9 +168,11 @@ void setup(void)
     Serial.println("HTTP server started");
 }
 
+// Main loop
 void loop(void)
 {
     static unsigned long lastTime = 0;
+    _timestamp = millis() ;
     if (millis() - lastTime > 5000)
     {
         lastTime = millis();
@@ -152,6 +181,14 @@ void loop(void)
 
     server.handleClient();
     MDNS.update();
+}
+
+// Send temperature data to AJAX call
+void sendTempData(void)
+{
+    Serial.println("AJAX call");
+    char tempstring[20];
+    server.send(200, "text/plane", dtostrf(_temperature, 5, 2, tempstring));
 }
 
 ///
