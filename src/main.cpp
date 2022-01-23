@@ -13,24 +13,36 @@
 
 #define DIV1_STYLE Style='background-color:black;color:yellow;width:20vw'
 
+// Function prototypes
 void handleRoot();
 void handleNotFound();
-char* buildPage(int p1, int p2, float f);
+char* buildPage(float f);
 float Map(double input, float inMin, float inMax, float outMin, float outMax);
 float readTemp(void);
 float getThermistorReading(float);
 float cToF(float c);
 void sendTempData(void);
+void updateSetpoint(void);
+void runTc(void);
 
+
+// Pin definitions
+const int led = LED_BUILTIN;
+const int THERMAL_PIN = D0;
+const int HEAT_COOL_DIR_PIN = D5;
+
+// Constants
+const float P_CONSTANT = 4.0;
 const char* ssid = STASSID;
 const char* password = STAPSK;
 char pageBuffer[2000];
 float _temperature = readTemp();
+float _setpoint = 0;
 unsigned long _timestamp = 0;
 
 ESP8266WebServer server(80);
-const int led = LED_BUILTIN;
-char* buildPage(int p1, int p2, float temp)
+
+char* buildPage(float temp)
 {
     const char* page =
         "<head>\
@@ -58,28 +70,24 @@ char* buildPage(int p1, int p2, float temp)
             </script>\
          </head>\
          <body>\
-             <div id='timestamp' class='status'>Time now %d</div>\
-             <div class='status'>D1 %d</div>\
-             <div class='status'>D2 %d</div>\
              <div id='temperature' class='status'>%5.1fF</div>\
              <div class='control'>\
-                <form action='/LED_ON' method='GET'>\
-                    <input type='submit' value='LED ON'/>\
-                </form>\
-                 <form action='/LED_OFF' method='GET'>\
-                    <input type='submit' value='LED OFF'/>\
+                <form action='/updateSetpoint' method='GET'>\
+                    <input type = 'button' id = 'increase' value= '+'>\
+                    <input type = 'button' id = 'decrease' value= '-'>\
+                    <input type='submit' value='Change Setpoint'/>\
                 </form>\
             </div>\
          </body>";
 
-    sprintf(pageBuffer, page, _timestamp,p1, p2, temp);
+    sprintf(pageBuffer, page, temp);
     return pageBuffer;
 }
 
 // Handle call to base URL
 void handleRoot()
 {
-    server.send(200, "text/html", buildPage(100, 150, _temperature));
+    server.send(200, "text/html", buildPage(_temperature));
     digitalWrite(led, 0);
     delay(50);
     digitalWrite(led, 1);
@@ -108,6 +116,10 @@ void setup(void)
     pinMode(led, OUTPUT);
     digitalWrite(led, 1);
 
+    pinMode (THERMAL_PIN, OUTPUT);
+    analogWrite(THERMAL_PIN, 0);
+
+    pinMode (HEAT_COOL_DIR_PIN, OUTPUT);
     Serial.begin(115200);
     //  WiFi.mode(WIFI_STA);
     WiFi.mode(WIFI_AP);
@@ -126,7 +138,7 @@ void setup(void)
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
 
-    if (MDNS.begin("Brew-1"))
+    if (MDNS.begin("TMon-1"))
     {
         MDNS.addService("http", "tcp", 80);
         // Start the mDNS responder for esp8266.local
@@ -164,6 +176,8 @@ void setup(void)
 
     server.onNotFound(handleNotFound);
 
+    server.on("/updateSetpoint", updateSetpoint);   
+
     server.begin();
     Serial.println("HTTP server started");
 }
@@ -173,14 +187,33 @@ void loop(void)
 {
     static unsigned long lastTime = 0;
     _timestamp = millis() ;
-    if (millis() - lastTime > 5000)
+    if (millis() - lastTime > 500)
     {
         lastTime = millis();
         _temperature = readTemp();
+        runTc();
     }
 
     server.handleClient();
     MDNS.update();
+}
+
+// Temperature control
+void runTc(void)
+{
+    float error = (_setpoint - _temperature );
+
+    // Determine if heating or cooling
+    digitalWrite(HEAT_COOL_DIR_PIN, error >= 0);
+    // PWM output
+    float output = error * P_CONSTANT + _temperature;
+    analogWrite(THERMAL_PIN, output);
+    Serial.printf("out: %8.2f, set: %8.2f, feedback:%8.2f\n", output, _setpoint, _temperature);
+}
+
+void updateSetpoint(void)
+{
+    Serial.println("Update setpoint");
 }
 
 // Send temperature data to AJAX call
@@ -232,7 +265,7 @@ float getThermistorReading(float volts)
     }
 
     temp = cToF(temp);
-    Serial.printf("v: %8.2f, o:%8.2f, t:%8.2f\n", volts, ohms, temp);
+    //Serial.printf("v: %8.2f, o:%8.2f, t:%8.2f\n", volts, ohms, temp);
     return temp;
 }
 
