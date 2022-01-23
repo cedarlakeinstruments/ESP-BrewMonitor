@@ -6,6 +6,13 @@
 #include <ESP8266mDNS.h>
 #include "LittelfuseThermistor.h"
 
+// **************************  Configuration ***********************
+// WiFiMode_t MODE = WIFI_STA;
+WiFiMode_t MODE = WIFI_AP;
+
+// **********************************************************************
+
+// Set SSID name if in Station mode
 #ifndef STASSID
 #define STASSID "ROAM1"
 #define STAPSK  ""
@@ -44,12 +51,12 @@ ESP8266WebServer server(80);
 
 char* buildPage(float temp)
 {
-    const char* page =
+    const char *page =
         "<head>\
             <style>\
-                body{background-color:black; color:yellow;font-family:sans-serif;font-size:medium}\
-                .status{margin-left:30vw;background-color:darkslateblue; color:white;width:30vw}\
-                .control{margin-left:30vw;background-color:darkslateblue; color:white;width:30vw}\
+                body{background-color:black; color:yellow;font-family:sans-serif;font-size:12}\
+                .status{margin-left:30vw;padding-left:1vw;background-color:darkslateblue; color:white;width:30vw;font-size:24}\
+                .control{margin-left:30vw;padding-left:1vw;background-color:darkslateblue; color:white;width:30vw;font-size:24}\
             </style>\
             <script>\
                 setInterval(function()\
@@ -121,8 +128,7 @@ void setup(void)
 
     pinMode (HEAT_COOL_DIR_PIN, OUTPUT);
     Serial.begin(115200);
-    //  WiFi.mode(WIFI_STA);
-    WiFi.mode(WIFI_AP);
+    WiFi.mode(MODE);
     WiFi.begin(ssid, password);
     Serial.println("");
 
@@ -153,9 +159,6 @@ void setup(void)
     server.on("/", handleRoot);
 
     server.on("/tempRead", sendTempData);
-
-    server.on("/inline", []()
-              { server.send(200, "text/plain", "this works as well"); });
 
     server.on("/gif", []()
               {
@@ -219,16 +222,17 @@ void updateSetpoint(void)
 // Send temperature data to AJAX call
 void sendTempData(void)
 {
-    Serial.println("AJAX call");
-    char tempstring[20];
-    server.send(200, "text/plane", dtostrf(_temperature, 5, 2, tempstring));
+    Serial.println("AJAX call to send temperature data");
+    char tempData[20];
+    sprintf(tempData,"%5.1fF", _temperature);
+    server.send(200, "text/plain", tempData);
 }
 
 ///
 /// Returns temp in F
 float readTemp(void)
 {
-    float volts = analogRead(A0) * 3.0 / 1024.0;
+    float volts = analogRead(A0) * 3.3 / 1024.0;
     float temp = getThermistorReading(volts);
     return temp;
 }
@@ -237,7 +241,7 @@ float getThermistorReading(float volts)
 {
     // Convert voltage to resistance
     const double Rs = 12000.0;
-    double ohms = (Rs * volts) / (3.0 - volts);
+    double ohms = (Rs * volts) / (3.3 - volts);
     float temp = 0;
 
     // Check for out of range
