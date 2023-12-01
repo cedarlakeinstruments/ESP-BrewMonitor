@@ -14,7 +14,7 @@ WiFiMode_t MODE = WIFI_AP;
 
 // Set SSID name if in Station mode
 #ifndef STASSID
-#define STASSID "ROAM1"
+#define STASSID ""
 #define STAPSK  ""
 #endif
 
